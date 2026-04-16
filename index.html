@@ -63,7 +63,7 @@
 <body>
 <div class="container">
   <h1>📄 照片／PDF 轉 Word 工具</h1>
-  <p class="subtitle">支援 PDF 和照片，自動辨識文字與數學公式，輸出 Word 和 LaTeX 兩種格式</p>
+  <p class="subtitle">支援 PDF 和照片，自動辨識文字與數學公式，輸出 Word 和 LaTeX 兩種格式（免費 Gemini AI）</p>
 
   <div class="card">
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
@@ -102,9 +102,9 @@
         </select>
       </div>
       <div style="flex:1.6;">
-        <span class="label">Anthropic API 金鑰</span>
-        <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="checkReady()">
-        <p class="api-note">金鑰只在你的電腦使用，不會傳送到其他地方。<a href="https://platform.claude.com/settings/keys" target="_blank">取得金鑰 ↗</a></p>
+        <span class="label">Google Gemini API 金鑰（免費）</span>
+        <input type="password" id="apiKey" placeholder="AIza..." oninput="checkReady()">
+        <p class="api-note">金鑰只在你的電腦使用，不會傳送到其他地方。<a href="https://aistudio.google.com/apikey" target="_blank">取得免費金鑰 ↗</a></p>
       </div>
     </div>
 
@@ -195,7 +195,7 @@ async function handleFiles(files) {
   }
 
   document.getElementById('pageCount').textContent = `共 ${allPages.length} 頁／張`;
-  document.getElementById('costEstimate').textContent = `預估費用：約 NT$ ${Math.ceil(allPages.length * 1.5)} 元`;
+  document.getElementById('costEstimate').textContent = `共 ${allPages.length} 頁，使用免費 Gemini AI`;
   checkReady();
 }
 
@@ -247,7 +247,7 @@ async function toBase64(file) {
 
 function checkReady() {
   const hasPages = allPages.length > 0;
-  const hasKey = document.getElementById('apiKey').value.trim().startsWith('sk-');
+  const hasKey = document.getElementById('apiKey').value.trim().length > 20;
   document.getElementById('convertBtn').disabled = !(hasPages && hasKey);
 }
 
@@ -279,21 +279,36 @@ function showError(msg) {
 }
 
 async function callAPI(apiKey, messages) {
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 4000, messages })
-  });
+  // Convert Anthropic message format to Gemini format
+  const parts = [];
+  for (const msg of messages) {
+    if (Array.isArray(msg.content)) {
+      for (const item of msg.content) {
+        if (item.type === 'image') {
+          parts.push({ inlineData: { mimeType: item.source.media_type, data: item.source.data } });
+        } else if (item.type === 'text') {
+          parts.push({ text: item.text });
+        }
+      }
+    } else {
+      parts.push({ text: msg.content });
+    }
+  }
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    }
+  );
   if (!resp.ok) {
     const e = await resp.json();
     throw new Error(e.error?.message || `API 錯誤 ${resp.status}`);
   }
   const data = await resp.json();
-  return data.content.map(b => b.text || '').join('\n').trim();
+  return data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n').trim() || '';
 }
 
 async function startConvert() {
