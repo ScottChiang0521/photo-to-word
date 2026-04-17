@@ -7,6 +7,8 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, options: { skipHtmlTags: ['script','noscript','style','textarea'] } };</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif; background: #f2f2f2; color: #1a1a1a; min-height: 100vh; }
@@ -341,11 +343,19 @@ async function startConvert() {
 
     latexContent = '（本版本不產生 LaTeX，節省費用）';
     const anonContent = anonymize(wordContent);
-    document.getElementById('wordBox').textContent = wordContent;
+
+    const wordBox = document.getElementById('wordBox');
+    const anonBox = document.getElementById('anonBox');
+    wordBox.textContent = wordContent;
+    wordBox.dataset.src = wordContent;
     document.getElementById('latexBox').textContent = latexContent;
-    document.getElementById('anonBox').textContent = anonContent;
+    anonBox.textContent = anonContent;
+    anonBox.dataset.src = anonContent;
+
     document.getElementById('resultSection').style.display = 'block';
     setStatus(`✓ 完成！共辨識 ${total} 頁，${wordContent.length} 個字元`, 100);
+
+    if (window.MathJax) MathJax.typesetPromise([wordBox, anonBox]).catch(console.error);
   } catch (e) {
     showError(e.message);
     setStatus('', 0);
@@ -355,12 +365,15 @@ async function startConvert() {
 }
 
 function copyContent(id, btn) {
-  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+  const el = document.getElementById(id);
+  const text = el.dataset.src || el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
     const orig = btn.textContent;
     btn.textContent = '已複製！';
     setTimeout(() => btn.textContent = orig, 1500);
   });
 }
+
 
 function downloadLatex() {
   if (!latexContent) return;
