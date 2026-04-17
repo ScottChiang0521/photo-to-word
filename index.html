@@ -409,8 +409,8 @@ async function downloadWord() {
       children
     }]
   });
-  const buf = await Packer.toBuffer(doc);
-  saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), '辨識結果.docx');
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, '辨識結果.docx');
 }
 async function downloadAnonWord() {
   const anonText = document.getElementById('anonBox').textContent;
@@ -448,8 +448,8 @@ async function downloadAnonWord() {
       children
     }]
   });
-  const buf = await Packer.toBuffer(doc);
-  saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), '去識別化結果.docx');
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, '去識別化結果.docx');
 }
 </script>
 </body>
