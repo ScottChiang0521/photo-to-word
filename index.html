@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, options: { skipHtmlTags: ['script','noscript','style','textarea'] } };</script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
 <style>
@@ -389,47 +390,87 @@ function splitMath(text) {
   return parts;
 }
 
-async function latexToImageRun(latex, display, ImageRun) {
-  if (!window.MathJax || !MathJax.tex2svg) return null;
-  if (MathJax.startup) await MathJax.startup.promise;
-  const node = MathJax.tex2svg(latex, { display });
-  const svg = node.querySelector('svg');
-  if (!svg) return null;
-  const EX_PX = 9;
-  // Strip trailing units safely (e.g. "5.678ex" → 5.678)
-  const parseEx = s => parseFloat((s || '').replace(/[a-zA-Z]+$/, '')) || 5;
-  const wPx = Math.max(parseEx(svg.getAttribute('width')) * EX_PX, 10);
-  const hPx = Math.max(parseEx(svg.getAttribute('height')) * EX_PX, 10);
-  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  svg.setAttribute('width', wPx + 'px');
-  svg.setAttribute('height', hPx + 'px');
-  const svgStr = new XMLSerializer().serializeToString(svg);
-  const img = new Image();
-  await new Promise((res, rej) => {
-    img.onload = res;
-    img.onerror = () => rej(new Error('SVG load failed'));
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-  });
-  const iw = img.naturalWidth || wPx;
-  const ih = img.naturalHeight || hPx;
-  if (iw <= 0 || ih <= 0) return null;
-  const scale = 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(iw * scale);
-  canvas.height = Math.ceil(ih * scale);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const b64 = canvas.toDataURL('image/png').split(',')[1];
-  if (!b64) return null;
-  const bin = atob(b64); const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  if (arr.length < 67) return null; // Minimum valid PNG is 67 bytes
-  const wEmu = Math.round(wPx * 9525);
-  const hEmu = Math.round(hPx * 9525);
-  if (wEmu <= 0 || hEmu <= 0) return null;
-  return new ImageRun({ data: arr, transformation: { width: wEmu, height: hEmu } });
+// ── LaTeX → OMML (native Word equations) ──────────────────────────────────────
+const _GREEK={'\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\epsilon':'ε','\\varepsilon':'ε','\\zeta':'ζ','\\eta':'η','\\theta':'θ','\\vartheta':'θ','\\iota':'ι','\\kappa':'κ','\\lambda':'λ','\\mu':'μ','\\nu':'ν','\\xi':'ξ','\\pi':'π','\\varpi':'π','\\rho':'ρ','\\varrho':'ρ','\\sigma':'σ','\\varsigma':'ς','\\tau':'τ','\\upsilon':'υ','\\phi':'φ','\\varphi':'φ','\\chi':'χ','\\psi':'ψ','\\omega':'ω','\\Gamma':'Γ','\\Delta':'Δ','\\Theta':'Θ','\\Lambda':'Λ','\\Xi':'Ξ','\\Pi':'Π','\\Sigma':'Σ','\\Upsilon':'Υ','\\Phi':'Φ','\\Psi':'Ψ','\\Omega':'Ω'};
+const _OPS={'\\infty':'∞','\\partial':'∂','\\nabla':'∇','\\pm':'±','\\mp':'∓','\\times':'×','\\div':'÷','\\cdot':'·','\\cdots':'⋯','\\ldots':'…','\\vdots':'⋮','\\leq':'≤','\\geq':'≥','\\neq':'≠','\\approx':'≈','\\equiv':'≡','\\sim':'∼','\\propto':'∝','\\rightarrow':'→','\\leftarrow':'←','\\Rightarrow':'⇒','\\Leftarrow':'⇐','\\Leftrightarrow':'⟺','\\to':'→','\\in':'∈','\\notin':'∉','\\subset':'⊂','\\subseteq':'⊆','\\cup':'∪','\\cap':'∩','\\emptyset':'∅','\\forall':'∀','\\exists':'∃','\\neg':'¬','\\wedge':'∧','\\vee':'∨','\\{':'{','\\}':'}','\\mid':'|'};
+const _FUNCS={'\\sin':'sin','\\cos':'cos','\\tan':'tan','\\cot':'cot','\\sec':'sec','\\csc':'csc','\\arcsin':'arcsin','\\arccos':'arccos','\\arctan':'arctan','\\sinh':'sinh','\\cosh':'cosh','\\tanh':'tanh','\\ln':'ln','\\log':'log','\\exp':'exp','\\det':'det','\\dim':'dim','\\ker':'ker','\\max':'max','\\min':'min','\\sup':'sup','\\inf':'inf','\\gcd':'gcd','\\Pr':'Pr','\\Re':'Re','\\Im':'Im','\\arg':'arg'};
+const _SPACE=new Set(['\\,','\\;','\\quad','\\qquad']);
+const _SKIP=new Set(['\\displaystyle','\\textstyle','\\scriptstyle','\\scriptscriptstyle','\\limits','\\nolimits','\\normalsize','\\small','\\large','\\Large','\\huge','\\Huge','\\medskip','\\smallskip','\\bigskip','\\noindent','\\centering','\\label','\\tag','\\nonumber','\\allowbreak']);
+const _FENCE=new Set(['\\left','\\right','\\big','\\Big','\\bigg','\\Bigg','\\bigl','\\bigr','\\Bigl','\\Bigr']);
+const _MFONT=new Set(['\\mathcal','\\mathbf','\\mathrm','\\mathit','\\text','\\textrm','\\textit','\\textbf','\\operatorname','\\mbox','\\hbox']);
+const _DECOR=new Set(['\\overline','\\underline','\\bar','\\hat','\\tilde','\\vec','\\dot','\\ddot','\\underbrace','\\overbrace','\\widehat','\\widetilde']);
+const _CAL={'L':'ℒ','U':'𝒰','F':'ℱ','S':'𝒮','H':'ℋ','B':'ℬ','C':'𝒞','D':'𝒟','E':'ℰ','G':'𝒢'};
+const _xe=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const _mt=(n,...c)=>`<m:${n}>${c.join('')}</m:${n}>`;
+const _mtext=s=>_mt('r',_mt('t',_xe(s)));
+const _mfrac=(n,d)=>_mt('f',_mt('num',n),_mt('den',d));
+const _msup=(b,s)=>_mt('sSup',_mt('e',b),_mt('sup',s));
+const _msub=(b,s)=>_mt('sSub',_mt('e',b),_mt('sub',s));
+const _msubsup=(b,sb,sp)=>_mt('sSubSup',_mt('e',b),_mt('sub',sb),_mt('sup',sp));
+const _msqrt=i=>_mt('rad',_mt('deg'),_mt('e',i));
+const _mnary=(chr,sub,sup)=>_mt('nary',_mt('naryPr',`<m:chr m:val="${_xe(chr)}"/>`),_mt('sub',sub||''),_mt('sup',sup||''),_mt('e',_mtext(' ')));
+
+function _ommlTok(s){const t=[];let i=0;while(i<s.length){const c=s[i];if(c==='\\'){let j=i+1;if(j<s.length&&/[a-zA-Z]/.test(s[j])){while(j<s.length&&/[a-zA-Z]/.test(s[j]))j++;t.push(['cmd',s.slice(i,j)]);i=j;}else{t.push(['cmd',i+1<s.length?s.slice(i,i+2):'\\']);i+=2;}}else if(c==='{'){t.push(['B',c]);i++;}else if(c==='}'){t.push(['E',c]);i++;}else if(c==='^'){t.push(['sup',c]);i++;}else if(c==='_'){t.push(['sub',c]);i++;}else if(' \t\n~&'.includes(c)){i++;}else{t.push(['ch',c]);i++;}}return t;}
+
+class _OmmlP{
+  constructor(t){this.t=t;this.p=0;}
+  pk(){return this.p<this.t.length?this.t[this.p]:null;}
+  nx(){return this.t[this.p++];}
+  grp(){const t=this.pk();if(t&&t[0]==='B'){this.nx();let s='';while(this.pk()&&this.pk()[0]!=='E')s+=this.atom();if(this.pk())this.nx();return s;}return this.atom();}
+  atom(){const t=this.pk();if(!t)return'';if(t[0]==='B')return this.grp();this.nx();if(t[0]==='ch')return this.sc(_mtext(t[1]));if(t[0]==='cmd')return this.cmd(t[1]);return'';}
+  sc(b){let sb=null,sp=null;for(let i=0;i<2;i++){const t=this.pk();if(t&&t[0]==='sub'&&sb===null){this.nx();sb=this.grp()||_mtext('');}else if(t&&t[0]==='sup'&&sp===null){this.nx();sp=this.grp()||_mtext('');}else break;}if(!b)b=_mtext('');if(sb!==null&&sp!==null)return _msubsup(b,sb,sp);if(sb!==null)return _msub(b,sb);if(sp!==null)return _msup(b,sp);return b;}
+  cmd(c){
+    if(_GREEK[c])return this.sc(_mtext(_GREEK[c]));
+    if(_OPS[c])return this.sc(_mtext(_OPS[c]));
+    if(_FUNCS[c])return this.sc(_mtext(_FUNCS[c]));
+    if(_SPACE.has(c))return _mtext(' ');
+    if(c==='\\!')return'';
+    if(_SKIP.has(c))return'';
+    if(_FENCE.has(c)){const t=this.pk();if(!t)return'';this.nx();let ch=t[0]==='ch'?t[1]:t[1]==='\\{'?'{':t[1]==='\\}'?'}':t[1]==='\\|'||t[1]==='\\mid'?'|':t[1]==='.'?'':t[1].slice(-1);return ch?_mtext(ch):'';}
+    if(c==='\\frac')return this.sc(_mfrac(this.grp()||_mtext(''),this.grp()||_mtext('')));
+    if(c==='\\sqrt')return this.sc(_msqrt(this.grp()||_mtext('')));
+    if(_MFONT.has(c)){const inner=this.grp();if(c==='\\mathcal'){const txt=inner.replace(/<[^>]*>/g,'');if(_CAL[txt])return this.sc(_mtext(_CAL[txt]));}return this.sc(inner||_mtext(''));}
+    if(c==='\\int'||c==='\\iint'||c==='\\iiint'){let sb=null,sp=null;for(let i=0;i<2;i++){const t=this.pk();if(t&&t[0]==='sub'&&sb===null){this.nx();sb=this.grp();}else if(t&&t[0]==='sup'&&sp===null){this.nx();sp=this.grp();}else break;}return _mnary('∫',sb,sp);}
+    if(c==='\\sum'||c==='\\prod'){let sb=null,sp=null;for(let i=0;i<2;i++){const t=this.pk();if(t&&t[0]==='sub'&&sb===null){this.nx();sb=this.grp();}else if(t&&t[0]==='sup'&&sp===null){this.nx();sp=this.grp();}else break;}return _mnary(c==='\\sum'?'∑':'∏',sb,sp);}
+    if(c==='\\lim'){let sb=null;const t=this.pk();if(t&&t[0]==='sub'){this.nx();sb=this.grp();}return sb?this.sc(_msub(_mtext('lim'),sb)):this.sc(_mtext('lim'));}
+    if(c==='\\begin'||c==='\\end'){this.grp();return'';}
+    if(c==='\\\\'||c==='\\newline'||c==='\\cr')return _mtext(' ');
+    if(_DECOR.has(c))return this.sc(this.grp()||_mtext(''));
+    return this.sc(_mtext(c.replace(/^\\/,'')));
+  }
+  all(){let s='';while(this.pk())s+=this.atom();return s;}
+}
+
+function _latexToOmml(latex){
+  latex=latex.trim().replace(/\\begin\{cases\}/g,'{').replace(/\\end\{cases\}/g,'').replace(/\\begin\{array\}[\s\S]*?\\end\{array\}/g,'\\ldots').replace(/\\\\/g,' ; ');
+  return new _OmmlP(_ommlTok(latex)).all();
+}
+
+async function postProcessDocx(blob){
+  if(!window.JSZip)return blob;
+  try{
+    const M_NS='http://schemas.openxmlformats.org/officeDocument/2006/math';
+    const W_NS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const zip=await JSZip.loadAsync(blob);
+    const xmlStr=await zip.file('word/document.xml').async('string');
+    const dp=new DOMParser();
+    const doc=dp.parseFromString(xmlStr,'application/xml');
+    const runs=Array.from(doc.getElementsByTagNameNS(W_NS,'r'));
+    for(const run of runs){
+      const tEl=run.getElementsByTagNameNS(W_NS,'t')[0];
+      if(!tEl?.textContent)continue;
+      const text=tEl.textContent;
+      if(!text.startsWith('$')||!text.endsWith('$')||text.length<3)continue;
+      try{
+        const inner=_latexToOmml(text.slice(1,-1));
+        const tmpDoc=dp.parseFromString(`<m:oMath xmlns:m="${M_NS}">${inner}</m:oMath>`,'application/xml');
+        if(tmpDoc.documentElement.localName==='oMath')
+          run.parentNode.replaceChild(doc.importNode(tmpDoc.documentElement,true),run);
+      }catch{/* keep as text */}
+    }
+    zip.file('word/document.xml',new XMLSerializer().serializeToString(doc));
+    return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  }catch{return blob;}
 }
 
 function lineToDocxRuns(text, TextRun) {
@@ -437,7 +478,7 @@ function lineToDocxRuns(text, TextRun) {
   const runs = parts.map(p =>
     p.t === 'text'
       ? new TextRun(p.v || '')
-      : new TextRun({ text: p.v, font: 'Cambria Math', color: '1F4E79', italics: true })
+      : new TextRun({ text: `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' })
   );
   return runs.length ? runs : [new TextRun(text)];
 }
@@ -491,7 +532,8 @@ async function downloadWord() {
         children.push(new Paragraph({ children: lineToDocxRuns(trimmed, TextRun) }));
     }
     const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
-    saveAs(await Packer.toBlob(doc), '辨識結果.docx');
+    const blob = await postProcessDocx(await Packer.toBlob(doc));
+    saveAs(blob, '辨識結果.docx');
   } catch (e) { showError('下載失敗：' + e.message); }
 }
 async function downloadAnonWord() {
@@ -519,13 +561,14 @@ async function downloadAnonWord() {
               runs.push(new TextRun({ text: sp, bold: true, color: 'B71C1C', highlight: 'yellow' }));
             else if (sp) runs.push(new TextRun(sp));
           }
-        } else runs.push(new TextRun({ text: p.v, font: 'Cambria Math', color: '1F4E79', italics: true }));
+        } else runs.push(new TextRun({ text: `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' }));
       }
       children.push(new Paragraph({ children: runs.length ? runs : [new TextRun(trimmed)] }));
     }
   }
   const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
-  saveAs(await Packer.toBlob(doc), '去識別化結果.docx');
+  const blob = await postProcessDocx(await Packer.toBlob(doc));
+  saveAs(blob, '去識別化結果.docx');
 }
 </script>
 </body>
