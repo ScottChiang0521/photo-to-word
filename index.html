@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, options: { skipHtmlTags: ['script','noscript','style','textarea'] } };</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif; background: #f2f2f2; color: #1a1a1a; min-height: 100vh; }
@@ -375,6 +375,61 @@ function copyContent(id, btn) {
 }
 
 
+function splitMath(text) {
+  const re = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g;
+  const parts = []; let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ t: 'text', v: text.slice(last, m.index) });
+    const isD = m[0].startsWith('$$');
+    parts.push({ t: isD ? 'display' : 'inline', v: isD ? m[0].slice(2, -2).trim() : m[0].slice(1, -1).trim() });
+    last = re.lastIndex;
+  }
+  if (last < text.length) parts.push({ t: 'text', v: text.slice(last) });
+  return parts;
+}
+
+async function latexToImageRun(latex, display, ImageRun) {
+  if (MathJax.startup) await MathJax.startup.promise;
+  const node = MathJax.tex2svg(latex, { display });
+  const svg = node.querySelector('svg');
+  if (!svg) return null;
+  const EX_PX = 9;
+  const wPx = parseFloat(svg.getAttribute('width') || '5') * EX_PX;
+  const hPx = parseFloat(svg.getAttribute('height') || '1.5') * EX_PX;
+  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svg.setAttribute('width', wPx + 'px');
+  svg.setAttribute('height', hPx + 'px');
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr); });
+  const scale = 3, cw = Math.ceil(wPx * scale), ch = Math.ceil(hPx * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = cw; canvas.height = ch;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+  ctx.drawImage(img, 0, 0, cw, ch);
+  const b64 = canvas.toDataURL('image/png').split(',')[1];
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new ImageRun({ data: arr, transformation: { width: Math.round(wPx * 9525), height: Math.round(hPx * 9525) } });
+}
+
+async function lineToDocxRuns(text, TextRun, ImageRun) {
+  const parts = splitMath(text);
+  const runs = [];
+  for (const p of parts) {
+    if (p.t === 'text') {
+      if (p.v) runs.push(new TextRun(p.v));
+    } else {
+      try {
+        const ir = window.MathJax ? await latexToImageRun(p.v, p.t === 'display', ImageRun) : null;
+        runs.push(ir || new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79', bold: true }));
+      } catch { runs.push(new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' })); }
+    }
+  }
+  return runs.length ? runs : [new TextRun(text)];
+}
+
 function downloadLatex() {
   if (!latexContent) return;
   saveAs(new Blob([latexContent], { type: 'text/plain;charset=utf-8' }), '辨識結果.tex');
@@ -384,7 +439,7 @@ async function downloadWord() {
   if (!wordContent) { showError('尚無辨識內容'); return; }
   if (typeof docx === 'undefined') { showError('docx 函式庫未載入，請重新整理頁面'); return; }
   try {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun } = docx;
   const lines = wordContent.split('\n');
   const children = [];
 
@@ -404,17 +459,9 @@ async function downloadWord() {
     else if (trimmed.startsWith('|'))
       children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
     else {
-      const runs = [];
-      const parts = trimmed.split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g);
-      for (const part of parts) {
-        if (/^\$/.test(part) && /\$$/.test(part))
-          runs.push(new TextRun({ text: part, font: 'Cambria Math', color: '1F4E79', bold: true }));
-        else if (part.startsWith('**') && part.endsWith('**'))
-          runs.push(new TextRun({ text: part.slice(2, -2), bold: true }));
-        else
-          runs.push(new TextRun(part));
-      }
-      children.push(new Paragraph({ children: runs }));
+      const runs = await lineToDocxRuns(trimmed, TextRun, ImageRun);
+      const centered = trimmed.startsWith('$$') && trimmed.endsWith('$$');
+      children.push(new Paragraph({ children: runs, alignment: centered ? 'center' : undefined }));
     }
   }
 
@@ -429,9 +476,9 @@ async function downloadWord() {
   } catch (e) { showError('下載失敗：' + e.message); }
 }
 async function downloadAnonWord() {
-  const anonText = document.getElementById('anonBox').textContent;
+  const anonText = document.getElementById('anonBox').dataset.src || document.getElementById('anonBox').textContent;
   if (!anonText || typeof docx === 'undefined') return;
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun } = docx;
   const lines = anonText.split('\n');
   const children = [];
   for (const line of lines) {
@@ -445,17 +492,26 @@ async function downloadAnonWord() {
     else if (trimmed.startsWith('|'))
       children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
     else {
+      const mathParts = splitMath(trimmed);
       const runs = [];
-      const parts = trimmed.split(/(【[^】]+】|\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g);
-      for (const part of parts) {
-        if (part.startsWith('【') && part.endsWith('】'))
-          runs.push(new TextRun({ text: part, bold: true, color: 'B71C1C', highlight: 'yellow' }));
-        else if (/^\$/.test(part) && /\$$/.test(part))
-          runs.push(new TextRun({ text: part, font: 'Cambria Math', color: '1F4E79', bold: true }));
-        else
-          runs.push(new TextRun(part));
+      for (const p of mathParts) {
+        if (p.t === 'text') {
+          const subparts = p.v.split(/(【[^】]+】)/g);
+          for (const sp of subparts) {
+            if (sp.startsWith('【') && sp.endsWith('】'))
+              runs.push(new TextRun({ text: sp, bold: true, color: 'B71C1C', highlight: 'yellow' }));
+            else if (sp)
+              runs.push(new TextRun(sp));
+          }
+        } else {
+          try {
+            const ir = window.MathJax ? await latexToImageRun(p.v, p.t === 'display', ImageRun) : null;
+            runs.push(ir || new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79', bold: true }));
+          } catch { runs.push(new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' })); }
+        }
       }
-      children.push(new Paragraph({ children: runs }));
+      const centered = trimmed.startsWith('$$') && trimmed.endsWith('$$');
+      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun(trimmed)], alignment: centered ? 'center' : undefined }));
     }
   }
   const doc = new Document({
