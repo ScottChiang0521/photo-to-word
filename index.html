@@ -368,7 +368,9 @@ function downloadLatex() {
 }
 
 async function downloadWord() {
-  if (!wordContent || typeof docx === 'undefined') return;
+  if (!wordContent) { showError('尚無辨識內容'); return; }
+  if (typeof docx === 'undefined') { showError('docx 函式庫未載入，請重新整理頁面'); return; }
+  try {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
   const lines = wordContent.split('\n');
   const children = [];
@@ -411,6 +413,7 @@ async function downloadWord() {
   });
   const blob = await Packer.toBlob(doc);
   saveAs(blob, '辨識結果.docx');
+  } catch (e) { showError('下載失敗：' + e.message); }
 }
 async function downloadAnonWord() {
   const anonText = document.getElementById('anonBox').textContent;
