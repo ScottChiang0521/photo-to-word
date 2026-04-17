@@ -133,6 +133,7 @@
       <div class="result-box" id="wordBox"></div>
       <div class="dl-row">
         <button class="btn btn-primary" onclick="downloadWord()">⬇ 下載 Word (.docx)</button>
+        <button class="btn btn-primary" onclick="downloadHtml()">⬇ 下載 HTML（公式渲染）</button>
         <button class="btn" onclick="copyContent('wordBox', this)">複製文字</button>
       </div>
     </div>
@@ -431,20 +432,33 @@ async function latexToImageRun(latex, display, ImageRun) {
   return new ImageRun({ data: arr, transformation: { width: wEmu, height: hEmu } });
 }
 
-async function lineToDocxRuns(text, TextRun, ImageRun) {
+function lineToDocxRuns(text, TextRun) {
   const parts = splitMath(text);
-  const runs = [];
-  for (const p of parts) {
-    if (p.t === 'text') {
-      if (p.v) runs.push(new TextRun(p.v));
-    } else {
-      try {
-        const ir = window.MathJax ? await latexToImageRun(p.v, p.t === 'display', ImageRun) : null;
-        runs.push(ir || new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79', bold: true }));
-      } catch { runs.push(new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' })); }
-    }
-  }
+  const runs = parts.map(p =>
+    p.t === 'text'
+      ? new TextRun(p.v || '')
+      : new TextRun({ text: p.v, font: 'Cambria Math', color: '1F4E79', italics: true })
+  );
   return runs.length ? runs : [new TextRun(text)];
+}
+
+function downloadHtml() {
+  if (!wordContent) return;
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const body = wordContent.split('\n').map(line => {
+    const t = line.trim();
+    if (t === '---') return '<hr>';
+    if (t.startsWith('# ')) return `<h1>${esc(t.slice(2))}</h1>`;
+    if (t.startsWith('## ')) return `<h2>${esc(t.slice(3))}</h2>`;
+    if (t.startsWith('### ')) return `<h3>${esc(t.slice(4))}</h3>`;
+    return `<p>${esc(line) || '&nbsp;'}</p>`;
+  }).join('\n');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>辨識結果</title>
+<script>MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]}};<\/script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async><\/script>
+<style>body{font-family:'Times New Roman','標楷體',serif;max-width:820px;margin:40px auto;padding:0 30px;line-height:2;font-size:15px}h1,h2,h3{margin-top:1.2em}p{margin:.3em 0}</style>
+</head><body>${body}</body></html>`;
+  saveAs(new Blob([html], { type: 'text/html;charset=utf-8' }), '辨識結果（公式渲染）.html');
 }
 
 function downloadLatex() {
@@ -456,46 +470,34 @@ async function downloadWord() {
   if (!wordContent) { showError('尚無辨識內容'); return; }
   if (typeof docx === 'undefined') { showError('docx 函式庫未載入，請重新整理頁面'); return; }
   try {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun } = docx;
-  const lines = wordContent.split('\n');
-  const children = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) { children.push(new Paragraph({ text: '' })); continue; }
-    if (trimmed === '---') { children.push(new Paragraph({ pageBreakBefore: true, text: '' })); continue; }
-
-    if (trimmed.startsWith('# '))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: trimmed.slice(2), bold: true })] }));
-    else if (trimmed.startsWith('## '))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: trimmed.slice(3), bold: true })] }));
-    else if (trimmed.startsWith('### '))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: trimmed.slice(4) })] }));
-    else if (trimmed.startsWith('- ') || trimmed.startsWith('* '))
-      children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(trimmed.slice(2))] }));
-    else if (trimmed.startsWith('|'))
-      children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
-    else {
-      const runs = await lineToDocxRuns(trimmed, TextRun, ImageRun);
-      const centered = trimmed.startsWith('$$') && trimmed.endsWith('$$');
-      children.push(new Paragraph({ children: runs, alignment: centered ? 'center' : undefined }));
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+    const lines = wordContent.split('\n');
+    const children = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) { children.push(new Paragraph({ text: '' })); continue; }
+      if (trimmed === '---') { children.push(new Paragraph({ pageBreakBefore: true, text: '' })); continue; }
+      if (trimmed.startsWith('# '))
+        children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: trimmed.slice(2), bold: true })] }));
+      else if (trimmed.startsWith('## '))
+        children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: trimmed.slice(3), bold: true })] }));
+      else if (trimmed.startsWith('### '))
+        children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: trimmed.slice(4) })] }));
+      else if (trimmed.startsWith('- ') || trimmed.startsWith('* '))
+        children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(trimmed.slice(2))] }));
+      else if (trimmed.startsWith('|'))
+        children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
+      else
+        children.push(new Paragraph({ children: lineToDocxRuns(trimmed, TextRun) }));
     }
-  }
-
-  const doc = new Document({
-    sections: [{
-      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
-      children
-    }]
-  });
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, '辨識結果.docx');
+    const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
+    saveAs(await Packer.toBlob(doc), '辨識結果.docx');
   } catch (e) { showError('下載失敗：' + e.message); }
 }
 async function downloadAnonWord() {
   const anonText = document.getElementById('anonBox').dataset.src || document.getElementById('anonBox').textContent;
   if (!anonText || typeof docx === 'undefined') return;
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun } = docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
   const lines = anonText.split('\n');
   const children = [];
   for (const line of lines) {
@@ -509,36 +511,21 @@ async function downloadAnonWord() {
     else if (trimmed.startsWith('|'))
       children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
     else {
-      const mathParts = splitMath(trimmed);
       const runs = [];
-      for (const p of mathParts) {
+      for (const p of splitMath(trimmed)) {
         if (p.t === 'text') {
-          const subparts = p.v.split(/(【[^】]+】)/g);
-          for (const sp of subparts) {
+          for (const sp of p.v.split(/(【[^】]+】)/g)) {
             if (sp.startsWith('【') && sp.endsWith('】'))
               runs.push(new TextRun({ text: sp, bold: true, color: 'B71C1C', highlight: 'yellow' }));
-            else if (sp)
-              runs.push(new TextRun(sp));
+            else if (sp) runs.push(new TextRun(sp));
           }
-        } else {
-          try {
-            const ir = window.MathJax ? await latexToImageRun(p.v, p.t === 'display', ImageRun) : null;
-            runs.push(ir || new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79', bold: true }));
-          } catch { runs.push(new TextRun({ text: p.t === 'display' ? `$$${p.v}$$` : `$${p.v}$`, font: 'Cambria Math', color: '1F4E79' })); }
-        }
+        } else runs.push(new TextRun({ text: p.v, font: 'Cambria Math', color: '1F4E79', italics: true }));
       }
-      const centered = trimmed.startsWith('$$') && trimmed.endsWith('$$');
-      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun(trimmed)], alignment: centered ? 'center' : undefined }));
+      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun(trimmed)] }));
     }
   }
-  const doc = new Document({
-    sections: [{
-      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
-      children
-    }]
-  });
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, '去識別化結果.docx');
+  const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
+  saveAs(await Packer.toBlob(doc), '去識別化結果.docx');
 }
 </script>
 </body>
