@@ -14,7 +14,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif; background: #f2f2f2; color: #1a1a1a; min-height: 100vh; }
   .container { max-width: 740px; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
-  h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  h1 { font-size: 22px; font-weight: 600; }
   .subtitle { font-size: 14px; color: #666; margin-bottom: 2rem; }
   .card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; margin-bottom: 1.25rem; }
   .label { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 6px; display: block; letter-spacing: 0.03em; }
@@ -42,13 +43,14 @@
   .btn-primary { background: #1a1a1a; color: #fff; border-color: transparent; font-weight: 500; }
   .btn-primary:hover { background: #333; }
   .btn-primary:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn-lang { padding: 5px 12px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
   .progress-wrap { margin-top: 1rem; }
   .progress-bar { height: 5px; background: #eee; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
   .progress-fill { height: 100%; width: 0%; background: #1a1a1a; border-radius: 3px; transition: width 0.35s; }
   .status { font-size: 13px; color: #666; min-height: 20px; }
   .error { color: #b91c1c; font-size: 13px; margin-top: 8px; background: #fef2f2; padding: 9px 13px; border-radius: 8px; border: 1px solid #fecaca; display: none; }
-  .tab-bar { display: flex; border-bottom: 1px solid #eee; margin-bottom: 1rem; }
-  .tab { padding: 8px 18px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: #888; border-bottom: 2.5px solid transparent; margin-bottom: -1px; transition: color 0.15s; }
+  .tab-bar { display: flex; border-bottom: 1px solid #eee; margin-bottom: 1rem; flex-wrap: wrap; }
+  .tab { padding: 8px 16px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: #888; border-bottom: 2.5px solid transparent; margin-bottom: -1px; transition: color 0.15s; }
   .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
@@ -58,23 +60,27 @@
   .note a { color: #555; }
   .api-note { font-size: 11px; color: #999; margin-top: 5px; }
   .api-note a { color: #666; }
-  .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #1e40af; margin-bottom: 1rem; }
   .page-count { font-size: 13px; color: #555; margin-top: 8px; }
   .section-divider { font-size: 12px; font-weight: 600; color: #555; margin: 1.2rem 0 0.6rem; letter-spacing: 0.03em; }
+  .trans-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .trans-bar select { width: auto; flex: none; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>📄 照片／PDF 轉 Word 工具</h1>
-  <p class="subtitle">支援 PDF 和照片，自動辨識文字與數學公式，輸出 Word 和 LaTeX 兩種格式（Claude Haiku AI）</p>
+  <div class="title-row">
+    <h1 data-i18n="title">📄 照片／PDF 轉 Word 工具</h1>
+    <button class="btn btn-lang" id="langBtn" onclick="toggleLang()">EN</button>
+  </div>
+  <p class="subtitle" data-i18n="subtitle">支援 PDF 和照片，自動辨識文字與數學公式，輸出 Word 和 LaTeX 兩種格式（Claude Haiku AI）</p>
 
   <div class="card">
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <input type="file" id="fileInput" accept="image/*,.pdf" multiple>
       <div id="uploadPrompt">
         <div style="font-size:30px; margin-bottom:10px;">📂</div>
-        <p style="font-size:15px; font-weight:500; margin-bottom:5px;">點擊或拖曳檔案到這裡</p>
-        <p style="font-size:13px; color:#888;">可同時上傳多個檔案</p>
+        <p style="font-size:15px; font-weight:500; margin-bottom:5px;" data-i18n="uploadPromptTitle">點擊或拖曳檔案到這裡</p>
+        <p style="font-size:13px; color:#888;" data-i18n="uploadPromptSub">可同時上傳多個檔案</p>
         <div class="file-type-badges">
           <span class="badge-type">📄 PDF</span>
           <span class="badge-type">🖼 JPG</span>
@@ -84,35 +90,35 @@
       <div id="previewContainer" style="display:none;">
         <div class="page-grid" id="pageGrid"></div>
         <p class="page-count" id="pageCount"></p>
-        <p style="font-size:12px; color:#888; margin-top:6px;">點擊可重新選擇</p>
+        <p style="font-size:12px; color:#888; margin-top:6px;" data-i18n="reselect">點擊可重新選擇</p>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="section-divider">設定</div>
+    <div class="section-divider" data-i18n="settingsTitle">設定</div>
     <div class="row" style="margin-top:0.5rem;">
       <div>
-        <span class="label">文件語言</span>
+        <span class="label" data-i18n="docLangLabel">文件語言</span>
         <select id="langHint">
-          <option value="繁體中文">繁體中文</option>
-          <option value="簡體中文">簡體中文</option>
-          <option value="英文">英文</option>
-          <option value="日文">日文</option>
-          <option value="韓文">韓文</option>
-          <option value="繁體中文與英文混合">繁中 + 英文混合</option>
-          <option value="">自動偵測</option>
+          <option value="繁體中文" data-i18n="opt_zh_tw">繁體中文</option>
+          <option value="簡體中文" data-i18n="opt_zh_cn">簡體中文</option>
+          <option value="英文" data-i18n="opt_en">英文</option>
+          <option value="日文" data-i18n="opt_ja">日文</option>
+          <option value="韓文" data-i18n="opt_ko">韓文</option>
+          <option value="繁體中文與英文混合" data-i18n="opt_zh_en">繁中 + 英文混合</option>
+          <option value="" data-i18n="opt_auto">自動偵測</option>
         </select>
       </div>
       <div style="flex:1.6;">
-        <span class="label">Anthropic API 金鑰</span>
+        <span class="label" data-i18n="apiKeyLabel">Anthropic API 金鑰</span>
         <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="checkReady()">
-        <p class="api-note">金鑰只在你的電腦使用，不會傳送到其他地方。<a href="https://platform.claude.com/settings/keys" target="_blank">取得金鑰 ↗</a></p>
+        <p class="api-note" data-i18n-html="apiNote">金鑰只在你的電腦使用，不會傳送到其他地方。<a href="https://platform.claude.com/settings/keys" target="_blank">取得金鑰 ↗</a></p>
       </div>
     </div>
 
     <div style="margin-top:1.2rem; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <button class="btn btn-primary" id="convertBtn" disabled onclick="startConvert()">開始辨識並轉換</button>
+      <button class="btn btn-primary" id="convertBtn" disabled onclick="startConvert()" data-i18n="convertBtn">開始辨識並轉換</button>
       <span id="costEstimate" style="font-size:12px; color:#888;"></span>
     </div>
 
@@ -125,38 +131,58 @@
 
   <div class="card" id="resultSection" style="display:none;">
     <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('word')">📝 Word 預覽</button>
-      <button class="tab" onclick="switchTab('latex')">🔣 LaTeX 原始碼</button>
-      <button class="tab" onclick="switchTab('anon')">🔒 去識別化版</button>
+      <button class="tab active" onclick="switchTab('word')" data-i18n="tabWord">📝 Word 預覽</button>
+      <button class="tab" onclick="switchTab('latex')" data-i18n="tabLatex">🔣 LaTeX 原始碼</button>
+      <button class="tab" onclick="switchTab('anon')" data-i18n="tabAnon">🔒 去識別化版</button>
+      <button class="tab" onclick="switchTab('translate')" data-i18n="tabTranslate">🌐 翻譯</button>
     </div>
 
     <div class="tab-panel active" id="tab-word">
       <div class="result-box" id="wordBox"></div>
       <div class="dl-row">
-        <button class="btn btn-primary" onclick="downloadWord()">⬇ 下載 Word (.docx)</button>
-        <button class="btn btn-primary" onclick="downloadHtml()">⬇ 下載 HTML（公式渲染）</button>
-        <button class="btn" onclick="copyContent('wordBox', this)">複製文字</button>
+        <button class="btn btn-primary" onclick="downloadWord()" data-i18n="dlWord">⬇ 下載 Word (.docx)</button>
+        <button class="btn btn-primary" onclick="downloadHtml()" data-i18n="dlHtml">⬇ 下載 HTML（公式渲染）</button>
+        <button class="btn" onclick="copyContent('wordBox', this)" data-i18n="copyText">複製文字</button>
       </div>
     </div>
 
     <div class="tab-panel" id="tab-latex">
       <div class="result-box" id="latexBox"></div>
       <div class="dl-row">
-        <button class="btn btn-primary" onclick="downloadLatex()">⬇ 下載 LaTeX (.tex)</button>
-        <button class="btn" onclick="copyContent('latexBox', this)">複製 LaTeX</button>
+        <button class="btn btn-primary" onclick="downloadLatex()" data-i18n="dlLatex">⬇ 下載 LaTeX (.tex)</button>
+        <button class="btn" onclick="copyContent('latexBox', this)" data-i18n="copyLatex">複製 LaTeX</button>
       </div>
-      <p class="note">可直接貼到 <a href="https://www.overleaf.com" target="_blank">Overleaf ↗</a> 編譯成漂亮的 PDF</p>
+      <p class="note" data-i18n-html="overleafNote">可直接貼到 <a href="https://www.overleaf.com" target="_blank">Overleaf ↗</a> 編譯成漂亮的 PDF</p>
     </div>
 
     <div class="tab-panel" id="tab-anon">
-      <div style="background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:10px 14px; font-size:13px; color:#795548; margin-bottom:12px;">
+      <div data-i18n-html="anonWarning" style="background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:10px 14px; font-size:13px; color:#795548; margin-bottom:12px;">
         🔒 以下內容已自動遮蔽：身分證字號、學號、手機、電話、Email、日期中的個人資料。<br>
         請檢查是否有遺漏，再決定是否分享此版本。
       </div>
       <div class="result-box" id="anonBox"></div>
       <div class="dl-row">
-        <button class="btn btn-primary" onclick="downloadAnonWord()">⬇ 下載去識別化 Word</button>
-        <button class="btn" onclick="copyContent('anonBox', this)">複製文字</button>
+        <button class="btn btn-primary" onclick="downloadAnonWord()" data-i18n="dlAnonWord">⬇ 下載去識別化 Word</button>
+        <button class="btn" onclick="copyContent('anonBox', this)" data-i18n="copyText">複製文字</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-translate">
+      <div class="trans-bar">
+        <span data-i18n="translateToLabel">翻譯成：</span>
+        <select id="transLang">
+          <option value="繁體中文">繁體中文</option>
+          <option value="English">English</option>
+          <option value="簡體中文">簡體中文</option>
+          <option value="日文">日文</option>
+          <option value="韓文">韓文</option>
+        </select>
+        <button class="btn btn-primary" id="transBtn" onclick="translateContent()" data-i18n="doTranslate">開始翻譯</button>
+      </div>
+      <div class="result-box" id="transBox" style="min-height:60px;"></div>
+      <div class="dl-row" id="transActions" style="display:none;">
+        <button class="btn btn-primary" onclick="downloadTranslatedWord()" data-i18n="dlTransWord">⬇ 下載翻譯版 Word</button>
+        <button class="btn" onclick="copyContent('transBox', this)" data-i18n="copyTrans">複製翻譯文字</button>
       </div>
     </div>
   </div>
@@ -165,9 +191,123 @@
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-let allPages = []; // { base64, mediaType, label }
+let allPages = [];
 let wordContent = '';
 let latexContent = '';
+let transContent = '';
+let currentLang = 'zh';
+
+const I18N = {
+  zh: {
+    title: '📄 照片／PDF 轉 Word 工具',
+    subtitle: '支援 PDF 和照片，自動辨識文字與數學公式，輸出 Word 和 LaTeX 兩種格式（Claude Haiku AI）',
+    uploadPromptTitle: '點擊或拖曳檔案到這裡',
+    uploadPromptSub: '可同時上傳多個檔案',
+    reselect: '點擊可重新選擇',
+    settingsTitle: '設定',
+    docLangLabel: '文件語言',
+    apiKeyLabel: 'Anthropic API 金鑰',
+    apiNote: '金鑰只在你的電腦使用，不會傳送到其他地方。<a href="https://platform.claude.com/settings/keys" target="_blank">取得金鑰 ↗</a>',
+    convertBtn: '開始辨識並轉換',
+    tabWord: '📝 Word 預覽',
+    tabLatex: '🔣 LaTeX 原始碼',
+    tabAnon: '🔒 去識別化版',
+    tabTranslate: '🌐 翻譯',
+    dlWord: '⬇ 下載 Word (.docx)',
+    dlHtml: '⬇ 下載 HTML（公式渲染）',
+    copyText: '複製文字',
+    dlLatex: '⬇ 下載 LaTeX (.tex)',
+    copyLatex: '複製 LaTeX',
+    overleafNote: '可直接貼到 <a href="https://www.overleaf.com" target="_blank">Overleaf ↗</a> 編譯成漂亮的 PDF',
+    dlAnonWord: '⬇ 下載去識別化 Word',
+    anonWarning: '🔒 以下內容已自動遮蔽：身分證字號、學號、手機、電話、Email、日期中的個人資料。<br>請檢查是否有遺漏，再決定是否分享此版本。',
+    translateToLabel: '翻譯成：',
+    doTranslate: '開始翻譯',
+    dlTransWord: '⬇ 下載翻譯版 Word',
+    copyTrans: '複製翻譯文字',
+    opt_zh_tw: '繁體中文', opt_zh_cn: '簡體中文', opt_en: '英文',
+    opt_ja: '日文', opt_ko: '韓文', opt_zh_en: '繁中 + 英文混合', opt_auto: '自動偵測',
+    pageCount: n => `共 ${n} 頁／張`,
+    costEst: c => `預估費用：約 NT$ ${c} 元`,
+    processing: '處理中...',
+    recognizing: (a, b, t) => `辨識第 ${a}～${b} 頁，共 ${t} 頁...`,
+    done: (t, c) => `✓ 完成！共辨識 ${t} 頁，${c} 個字元`,
+    errPrefix: '錯誤：',
+    copied: '已複製！',
+    translating: '翻譯中...',
+    translateDone: n => `✓ 翻譯完成！${n} 個字元`,
+    noContent: '尚無辨識內容',
+    libNotLoaded: 'docx 函式庫未載入，請重新整理頁面',
+    dlFailed: s => '下載失敗：' + s,
+    transPrompt: lang => `請將以下文字翻譯成${lang}。數學公式（$...$和$$...$$格式）保持不變，保留Markdown格式（標題#、清單-、表格|），只輸出翻譯結果，不加任何說明：\n\n`,
+  },
+  en: {
+    title: '📄 Photo/PDF to Word Tool',
+    subtitle: 'Supports PDF and photos, auto-recognizes text and math formulas, exports Word and LaTeX (Claude Haiku AI)',
+    uploadPromptTitle: 'Click or drag files here',
+    uploadPromptSub: 'Multiple files supported',
+    reselect: 'Click to re-select',
+    settingsTitle: 'Settings',
+    docLangLabel: 'Document Language',
+    apiKeyLabel: 'Anthropic API Key',
+    apiNote: 'Your key stays on your device only. <a href="https://platform.claude.com/settings/keys" target="_blank">Get key ↗</a>',
+    convertBtn: 'Start Recognition & Convert',
+    tabWord: '📝 Word Preview',
+    tabLatex: '🔣 LaTeX Source',
+    tabAnon: '🔒 Anonymized',
+    tabTranslate: '🌐 Translate',
+    dlWord: '⬇ Download Word (.docx)',
+    dlHtml: '⬇ Download HTML (rendered formulas)',
+    copyText: 'Copy Text',
+    dlLatex: '⬇ Download LaTeX (.tex)',
+    copyLatex: 'Copy LaTeX',
+    overleafNote: 'Paste directly into <a href="https://www.overleaf.com" target="_blank">Overleaf ↗</a> to compile a beautiful PDF.',
+    dlAnonWord: '⬇ Download Anonymized Word',
+    anonWarning: '🔒 The following has been auto-redacted: ID numbers, student IDs, phone numbers, email addresses, and personal dates.<br>Please review for any missed items before sharing.',
+    translateToLabel: 'Translate to:',
+    doTranslate: 'Translate',
+    dlTransWord: '⬇ Download Translated Word',
+    copyTrans: 'Copy Translation',
+    opt_zh_tw: 'Traditional Chinese', opt_zh_cn: 'Simplified Chinese', opt_en: 'English',
+    opt_ja: 'Japanese', opt_ko: 'Korean', opt_zh_en: 'Traditional Chinese + English', opt_auto: 'Auto-detect',
+    pageCount: n => `${n} page(s)`,
+    costEst: c => `Est. cost: ~NT$ ${c}`,
+    processing: 'Processing...',
+    recognizing: (a, b, t) => `Recognizing pages ${a}–${b} of ${t}...`,
+    done: (t, c) => `✓ Done! ${t} page(s), ${c} chars`,
+    errPrefix: 'Error: ',
+    copied: 'Copied!',
+    translating: 'Translating...',
+    translateDone: n => `✓ Translation complete! ${n} chars`,
+    noContent: 'No recognized content yet',
+    libNotLoaded: 'docx library not loaded, please refresh',
+    dlFailed: s => 'Download failed: ' + s,
+    transPrompt: lang => `Please translate the following text into ${lang}. Keep all math formulas ($...$ and $$...$$ format) unchanged, preserve Markdown formatting (headings #, lists -, tables |), output only the translation without any explanation:\n\n`,
+  }
+};
+
+function applyLang(lang) {
+  currentLang = lang;
+  document.documentElement.lang = lang === 'zh' ? 'zh-TW' : 'en';
+  document.title = lang === 'zh' ? '照片／PDF 轉 Word 工具' : 'Photo/PDF to Word Tool';
+  document.getElementById('langBtn').textContent = lang === 'zh' ? 'EN' : '中';
+  const s = I18N[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const val = s[el.dataset.i18n];
+    if (typeof val === 'string') {
+      if (el.tagName === 'INPUT') el.placeholder = val;
+      else el.textContent = val;
+    }
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const val = s[el.dataset.i18nHtml];
+    if (typeof val === 'string') el.innerHTML = val;
+  });
+}
+
+function toggleLang() {
+  applyLang(currentLang === 'zh' ? 'en' : 'zh');
+}
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -186,7 +326,7 @@ async function handleFiles(files) {
   allPages = [];
   const grid = document.getElementById('pageGrid');
   grid.innerHTML = '';
-  document.getElementById('pageCount').textContent = '處理中...';
+  document.getElementById('pageCount').textContent = I18N[currentLang].processing;
   document.getElementById('uploadPrompt').style.display = 'none';
   document.getElementById('previewContainer').style.display = 'block';
 
@@ -198,8 +338,8 @@ async function handleFiles(files) {
     }
   }
 
-  document.getElementById('pageCount').textContent = `共 ${allPages.length} 頁／張`;
-  document.getElementById('costEstimate').textContent = `預估費用：約 NT$ ${Math.ceil(allPages.length * 0.3)} 元`;
+  document.getElementById('pageCount').textContent = I18N[currentLang].pageCount(allPages.length);
+  document.getElementById('costEstimate').textContent = I18N[currentLang].costEst(Math.ceil(allPages.length * 0.3));
   checkReady();
 }
 
@@ -256,7 +396,8 @@ function checkReady() {
 }
 
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['word','latex','anon'][i] === tab));
+  const tabs = ['word', 'latex', 'anon', 'translate'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
 }
@@ -264,11 +405,11 @@ function switchTab(tab) {
 function anonymize(text) {
   return text
     .replace(/[A-Z][12]\d{8}/g, '【身分證遮蔽】')
-    .replace(/\d{9,10}/g, '【學號遮蔽】')
+    .replace(/\d{9,10}/g, '【學號遮蔽】')
     .replace(/(09\d{2})[-\s]?\d{3}[-\s]?\d{3}/g, '【手機遮蔽】')
-    .replace(/0[2-8]\d[-\s]?\d{3,4}[-\s]?\d{4}/g, '【電話遮蔽】')
+    .replace(/0[2-8]\d[-\s]?\d{3,4}[-\s]?\d{4}/g, '【電話遮蔽】')
     .replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '【Email遮蔽】')
-    .replace(/\d{3,6}(?=\s*(同學|學生|生))/g, '【座號遮蔽】');
+    .replace(/\d{3,6}(?=\s*(同學|學生|生))/g, '【座號遮蔽】');
 }
 
 function setStatus(msg, pct) {
@@ -278,7 +419,7 @@ function setStatus(msg, pct) {
 
 function showError(msg) {
   const el = document.getElementById('errorMsg');
-  el.textContent = msg ? '錯誤：' + msg : '';
+  el.textContent = msg ? I18N[currentLang].errPrefix + msg : '';
   el.style.display = msg ? 'block' : 'none';
 }
 
@@ -295,7 +436,7 @@ async function callAPI(apiKey, messages) {
   });
   if (!resp.ok) {
     const e = await resp.json();
-    throw new Error(e.error?.message || `API 錯誤 ${resp.status}`);
+    throw new Error(e.error?.message || `API error ${resp.status}`);
   }
   const data = await resp.json();
   return data.content.map(b => b.text || '').join('\n').trim();
@@ -310,7 +451,6 @@ async function startConvert() {
   document.getElementById('convertBtn').disabled = true;
 
   try {
-    // Process pages in batches of 4 to avoid token limits
     const BATCH = 4;
     const allTexts = [];
     const total = allPages.length;
@@ -318,7 +458,7 @@ async function startConvert() {
     for (let i = 0; i < total; i += BATCH) {
       const batch = allPages.slice(i, i + BATCH);
       const pct = Math.round(10 + (i / total) * 55);
-      setStatus(`辨識第 ${i+1}～${Math.min(i+BATCH, total)} 頁，共 ${total} 頁...`, pct);
+      setStatus(I18N[currentLang].recognizing(i + 1, Math.min(i + BATCH, total), total), pct);
 
       const langNote = lang ? `文件語言：${lang}。` : '';
       const imageContents = batch.map(p => ({
@@ -327,7 +467,7 @@ async function startConvert() {
       }));
       imageContents.push({
         type: 'text',
-        text: `請辨識這${batch.length > 1 ? '幾張' : '張'}圖片（${batch.map(p=>p.label).join('、')}）中的所有文字。${langNote}
+        text: `請辨識這${batch.length > 1 ? '幾張' : '張'}圖片（${batch.map(p => p.label).join('、')}）中的所有文字。${langNote}
 規則：
 1. 完整保留所有文字、標題、段落、清單、表格
 2. 數學公式用 LaTeX：行內用 $公式$，獨立行用 $$公式$$
@@ -342,7 +482,6 @@ async function startConvert() {
     }
 
     wordContent = allTexts.join('\n\n');
-
     latexContent = '（本版本不產生 LaTeX，節省費用）';
     const anonContent = anonymize(wordContent);
 
@@ -354,8 +493,13 @@ async function startConvert() {
     anonBox.textContent = anonContent;
     anonBox.dataset.src = anonContent;
 
+    transContent = '';
+    document.getElementById('transBox').textContent = '';
+    document.getElementById('transBox').dataset.src = '';
+    document.getElementById('transActions').style.display = 'none';
+
     document.getElementById('resultSection').style.display = 'block';
-    setStatus(`✓ 完成！共辨識 ${total} 頁，${wordContent.length} 個字元`, 100);
+    setStatus(I18N[currentLang].done(total, wordContent.length), 100);
 
     if (window.MathJax) MathJax.typesetPromise([wordBox, anonBox]).catch(console.error);
   } catch (e) {
@@ -366,16 +510,46 @@ async function startConvert() {
   }
 }
 
+async function translateContent() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!wordContent) { showError(I18N[currentLang].noContent); return; }
+  if (!apiKey) { showError('Please enter your API key'); return; }
+  const targetLang = document.getElementById('transLang').value;
+  const transBtn = document.getElementById('transBtn');
+  transBtn.disabled = true;
+  document.getElementById('transActions').style.display = 'none';
+  const transBox = document.getElementById('transBox');
+  transBox.textContent = I18N[currentLang].translating;
+  showError('');
+  document.getElementById('progressWrap').style.display = 'block';
+
+  try {
+    setStatus(I18N[currentLang].translating, 30);
+    const prompt = I18N[currentLang].transPrompt(targetLang) + wordContent;
+    transContent = await callAPI(apiKey, [{ role: 'user', content: prompt }]);
+    transBox.textContent = transContent;
+    transBox.dataset.src = transContent;
+    document.getElementById('transActions').style.display = 'flex';
+    setStatus(I18N[currentLang].translateDone(transContent.length), 100);
+    if (window.MathJax) MathJax.typesetPromise([transBox]).catch(console.error);
+  } catch (e) {
+    showError(e.message);
+    transBox.textContent = '';
+    setStatus('', 0);
+  } finally {
+    transBtn.disabled = false;
+  }
+}
+
 function copyContent(id, btn) {
   const el = document.getElementById(id);
   const text = el.dataset.src || el.textContent;
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.textContent;
-    btn.textContent = '已複製！';
+    btn.textContent = I18N[currentLang].copied;
     setTimeout(() => btn.textContent = orig, 1500);
   });
 }
-
 
 function splitMath(text) {
   const re = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g;
@@ -483,6 +657,28 @@ function lineToDocxRuns(text, TextRun) {
   return runs.length ? runs : [new TextRun(text)];
 }
 
+function buildDocxChildren(lines, TextRun, Paragraph, HeadingLevel) {
+  const children = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { children.push(new Paragraph({ text: '' })); continue; }
+    if (trimmed === '---') { children.push(new Paragraph({ pageBreakBefore: true, text: '' })); continue; }
+    if (trimmed.startsWith('# '))
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: trimmed.slice(2), bold: true })] }));
+    else if (trimmed.startsWith('## '))
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: trimmed.slice(3), bold: true })] }));
+    else if (trimmed.startsWith('### '))
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: trimmed.slice(4) })] }));
+    else if (trimmed.startsWith('- ') || trimmed.startsWith('* '))
+      children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(trimmed.slice(2))] }));
+    else if (trimmed.startsWith('|'))
+      children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
+    else
+      children.push(new Paragraph({ children: lineToDocxRuns(trimmed, TextRun) }));
+  }
+  return children;
+}
+
 function downloadHtml() {
   if (!wordContent) return;
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -494,48 +690,35 @@ function downloadHtml() {
     if (t.startsWith('### ')) return `<h3>${esc(t.slice(4))}</h3>`;
     return `<p>${esc(line) || '&nbsp;'}</p>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>辨識結果</title>
+  const title = currentLang === 'zh' ? '辨識結果' : 'Recognition Result';
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
 <script>MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]}};<\/script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async><\/script>
 <style>body{font-family:'Times New Roman','標楷體',serif;max-width:820px;margin:40px auto;padding:0 30px;line-height:2;font-size:15px}h1,h2,h3{margin-top:1.2em}p{margin:.3em 0}</style>
 </head><body>${body}</body></html>`;
-  saveAs(new Blob([html], { type: 'text/html;charset=utf-8' }), '辨識結果（公式渲染）.html');
+  const filename = currentLang === 'zh' ? '辨識結果（公式渲染）.html' : 'result-rendered.html';
+  saveAs(new Blob([html], { type: 'text/html;charset=utf-8' }), filename);
 }
 
 function downloadLatex() {
   if (!latexContent) return;
-  saveAs(new Blob([latexContent], { type: 'text/plain;charset=utf-8' }), '辨識結果.tex');
+  const filename = currentLang === 'zh' ? '辨識結果.tex' : 'result.tex';
+  saveAs(new Blob([latexContent], { type: 'text/plain;charset=utf-8' }), filename);
 }
 
 async function downloadWord() {
-  if (!wordContent) { showError('尚無辨識內容'); return; }
-  if (typeof docx === 'undefined') { showError('docx 函式庫未載入，請重新整理頁面'); return; }
+  if (!wordContent) { showError(I18N[currentLang].noContent); return; }
+  if (typeof docx === 'undefined') { showError(I18N[currentLang].libNotLoaded); return; }
   try {
     const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
-    const lines = wordContent.split('\n');
-    const children = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) { children.push(new Paragraph({ text: '' })); continue; }
-      if (trimmed === '---') { children.push(new Paragraph({ pageBreakBefore: true, text: '' })); continue; }
-      if (trimmed.startsWith('# '))
-        children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: trimmed.slice(2), bold: true })] }));
-      else if (trimmed.startsWith('## '))
-        children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: trimmed.slice(3), bold: true })] }));
-      else if (trimmed.startsWith('### '))
-        children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: trimmed.slice(4) })] }));
-      else if (trimmed.startsWith('- ') || trimmed.startsWith('* '))
-        children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(trimmed.slice(2))] }));
-      else if (trimmed.startsWith('|'))
-        children.push(new Paragraph({ children: [new TextRun({ text: trimmed, font: 'Courier New', size: 20 })] }));
-      else
-        children.push(new Paragraph({ children: lineToDocxRuns(trimmed, TextRun) }));
-    }
+    const children = buildDocxChildren(wordContent.split('\n'), TextRun, Paragraph, HeadingLevel);
     const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
     const blob = await postProcessDocx(await Packer.toBlob(doc));
-    saveAs(blob, '辨識結果.docx');
-  } catch (e) { showError('下載失敗：' + e.message); }
+    const filename = currentLang === 'zh' ? '辨識結果.docx' : 'result.docx';
+    saveAs(blob, filename);
+  } catch (e) { showError(I18N[currentLang].dlFailed(e.message)); }
 }
+
 async function downloadAnonWord() {
   const anonText = document.getElementById('anonBox').dataset.src || document.getElementById('anonBox').textContent;
   if (!anonText || typeof docx === 'undefined') return;
@@ -570,6 +753,21 @@ async function downloadAnonWord() {
   const blob = await postProcessDocx(await Packer.toBlob(doc));
   saveAs(blob, '去識別化結果.docx');
 }
+
+async function downloadTranslatedWord() {
+  if (!transContent) { showError(I18N[currentLang].noContent); return; }
+  if (typeof docx === 'undefined') { showError(I18N[currentLang].libNotLoaded); return; }
+  try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+    const children = buildDocxChildren(transContent.split('\n'), TextRun, Paragraph, HeadingLevel);
+    const doc = new Document({ sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] });
+    const blob = await postProcessDocx(await Packer.toBlob(doc));
+    const filename = currentLang === 'zh' ? '翻譯結果.docx' : 'translation.docx';
+    saveAs(blob, filename);
+  } catch (e) { showError(I18N[currentLang].dlFailed(e.message)); }
+}
+
+applyLang('zh');
 </script>
 </body>
 </html>
